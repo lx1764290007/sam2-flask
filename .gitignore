@@ -10,3 +10,4 @@ outputs/*
 checkpoints/*.pt
 the_elder_env
 vnev
+static/*
