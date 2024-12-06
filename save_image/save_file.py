@@ -9,7 +9,7 @@ from PIL import Image
 
 # 当前目录
 current_dir = Path.cwd()
-print(f"当前目录: {current_dir}")
+
 # 获取 app.py 文件的绝对路径
 
 PATH_NAME = 'static'

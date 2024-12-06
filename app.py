@@ -19,6 +19,7 @@ from app_conf import (
 from flask import Flask, request, Response, jsonify
 from flask_cors import CORS
 
+from save_image.clear_file import get_scheduler
 from save_image.save_file import save_image
 
 logger = logging.getLogger(__name__)
@@ -228,3 +229,4 @@ def sam2() -> tuple[Response, int]:
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=7263)
+    get_scheduler().start()
