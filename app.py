@@ -6,10 +6,14 @@ import json
 import logging
 import cv2
 import torch
+
+from rembg import remove
+
 from sam2.build_sam import build_sam2
 import numpy as np
 
 from sam2.sam2_image_predictor import SAM2ImagePredictor
+from sam2 import automatic_mask_generator
 
 from app_conf import (
     DEVICE_TYPE,
@@ -35,6 +39,8 @@ model_cfg = "./configs/sam2.1/sam2.1_hiera_b+.yaml"
 build_sam2_model = build_sam2(model_cfg, checkpoint)
 predictor = SAM2ImagePredictor(build_sam2_model)
 
+mask_generator = automatic_mask_generator.SAM2AutomaticMaskGenerator(model=build_sam2_model)
+
 
 # image = cv2.imread(image_path)
 # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为 RGB 格式
@@ -42,10 +48,59 @@ predictor = SAM2ImagePredictor(build_sam2_model)
 # input_point = np.array([[200, 100]])
 
 
+def create_multiple_masks(nd):
+    masks = mask_generator.generate(image=nd)
+    return multiple_masks_to_image(masks, nd)
+
+
+def do_remove_bg(np_array):
+    output = remove(np_array)
+
+    image_result = get_mask_to_center_image(None, output)
+
+
+    # 获取图片尺寸（高度、宽度、通道数）
+    height, width, channels = image_result.shape
+    result = save_image(image_result)
+    return result
+
+def multiple_masks_to_image(masks, np_arr):
+    arr = []
+    for i, mask in enumerate(masks):
+        # 从字典中提取实际的掩码数据
+        segmentation = mask.get('segmentation')
+        if segmentation is None:
+            raise ValueError(f"Mask {i} does not contain 'segmentation' key")
+
+        # 获取图像的高度和宽度
+        height, width = np_arr.shape[:2]
+
+        # 将掩码扩展为 3 通道的掩码
+        mask_3d = np.repeat(segmentation[:, :, np.newaxis], 3, axis=2)  # 转换为 3 通道（RGB）
+
+        # 将掩码应用到原图上（掩码为 1 的部分保留，掩码为 0 的部分置为透明或黑色）
+        result_image = np_arr * mask_3d  # 根据掩码提取原图区域
+
+        # 如果你需要将图像保存为 RGBA 格式（带透明度），你可以添加 Alpha 通道
+        rgba_image = np.zeros((height, width, 4), dtype=np.uint8)  # 创建一个 RGBA 图像
+        rgba_image[..., :3] = result_image  # 将 RGB 部分赋值
+        rgba_image[..., 3] = (segmentation * 255).astype(np.uint8)  # Alpha 通道根据掩码设置
+
+        # 如果你有处理透明度的函数，可以在这里调用
+        rgba_image_center = get_mask_to_center_image(segmentation, rgba_image)
+
+        # 保存图像（假设 save_image 已定义）
+        file_name = save_image(rgba_image_center)
+
+        # 将文件名添加到数组
+        arr.append(file_name)
+    return arr
+
+
 # 图片缩放
 def scale_img(img, width, height):
     dim = (width, height)
-    return cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+    return cv2.resize(img, dim, interpolation=cv2.INTER_CUBIC)
 
 
 def resize_image_aspect_ratio(image, target_width=None, target_height=None):
@@ -80,9 +135,7 @@ def resize_image_aspect_ratio(image, target_width=None, target_height=None):
 # 把抠图绘制到透明画布中间
 def get_mask_to_center_image(best_mask, rgba_image):
     # 图片尺寸
-    mask_height = 1024
-    mask_width = 1024
-
+    height, width, _ = rgba_image.shape
     # 1. 提取非透明部分的边界
     alpha_channel = rgba_image[..., 3]
     non_zero_coords = np.where(alpha_channel > 0)
@@ -94,19 +147,21 @@ def get_mask_to_center_image(best_mask, rgba_image):
 
     # 裁剪非透明部分
     cropped_image = rgba_image[y_min:y_max + 1, x_min:x_max + 1]
-
+    cropped_height, cropped_width, _ = cropped_image.shape
     # 2. 创建目标透明图片
-    target_height, target_width = mask_height, mask_width  # 自定义目标图片大小
+    target_height, target_width = max(cropped_height, cropped_width), max(cropped_height, cropped_width)  # 自定义目标图片大小
     transparent_image = np.zeros((target_height, target_width, 4), dtype=np.uint8)
 
     # 3. 计算非透明部分在目标图片中的中心位置
-    cropped_height, cropped_width, _ = cropped_image.shape
-    if cropped_height < cropped_width < 800:
-        cropped_image = resize_image_aspect_ratio(cropped_image, target_width=800)
-        cropped_height, cropped_width, _ = cropped_image.shape
-    elif cropped_width < cropped_height < 800:
-        cropped_image = resize_image_aspect_ratio(cropped_image, target_height=800)
-        cropped_height, cropped_width, _ = cropped_image.shape
+    # cropped_height, cropped_width, _ = cropped_image.shape
+    # if cropped_height < cropped_width < rgba_image_size:
+    #     cropped_image = resize_image_aspect_ratio(cropped_image, target_width=mask_size_width)
+    #     cropped_height, cropped_width, _ = cropped_image.shape
+    # elif cropped_width < cropped_height < rgba_image_size:
+    #     cropped_image = resize_image_aspect_ratio(cropped_image, target_height=mask_size_height)
+    #     cropped_height, cropped_width, _ = cropped_image.shape
+    # cropped_image = resize_image_aspect_ratio(cropped_image, target_height=max(mask_size_width, mask_size_height))
+    # cropped_height, cropped_width, _ = cropped_image.shape
     start_y = (target_height - cropped_height) // 2
     start_x = (target_width - cropped_width) // 2
 
@@ -151,12 +206,12 @@ def generate_mask(np_array, nparr):
 
         # 使用掩膜作为 Alpha 通道
         rgba_image[..., 3] = (best_mask * 255).astype(np.uint8)
-        # 把掩膜放到透明图片中间
+
         rgba_image_center = get_mask_to_center_image(best_mask, rgba_image)
         # 缩放到 300 * 300
-        image_center_scale2_300_300 = scale_img(rgba_image_center, 300, 300)
+        # image_center_scale2_300_300 = scale_img(rgba_image_center, 500, 500)
         # 将边缘设置为高亮
-        file_name = save_image(image_center_scale2_300_300)
+        file_name = save_image(rgba_image_center)
         # 保存为 PNG 并转 Base64
         # buffer = BytesIO()
         # Image.fromarray(image_center_scale2_300_300).save(buffer, format="PNG")
@@ -200,7 +255,7 @@ def generate_mask(np_array, nparr):
                     rgba_image[y, x, :3] = (1 - alpha) * rgba_image[y, x, :3] + alpha * overlay[y, x, :3]
                     rgba_image[y, x, 3] = 255  # 保证蒙层区域完全不透明
 
-        cv2.waitKey(0)
+        # cv2.waitKey(0)
         # 8. 存储为image并返回文件名
         image_mask = save_image(rgba_image)
         return dict(image_origin=file_name, image_mask=image_mask)
@@ -208,6 +263,8 @@ def generate_mask(np_array, nparr):
 
 @app.route("/sam2", methods=["POST"])
 def sam2() -> tuple[Response, int]:
+    torch.cuda.empty_cache()  # 清理未使用的显存
+    torch.cuda.reset_peak_memory_stats()  # 重置峰值内存统计
     # generate_mask(input_point)
     file = request.files.get("file")
     if not file:
@@ -227,6 +284,50 @@ def sam2() -> tuple[Response, int]:
     return jsonify({'data': res}), 200
 
 
+@app.route('/multiple-sam2', methods=["POST"])
+def create_multiple_images() -> tuple[Response, int]:
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "No file uploaded"}), 400
+    file_bytes = file.read()
+    width = request.form.get("width")  # 图片实际宽度
+    height = request.form.get("height")  # 图片实际高度
+    np_array = np.frombuffer(file_bytes, np.uint8)
+    image = cv2.imdecode(np_array, cv2.IMREAD_COLOR)  # 解码为 BGR 格式
+    if image is None:
+        return jsonify({"error": "Failed to decode image"}), 400
+
+    # 转换为 RGB 格式（如果你的模型需要）
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    res = create_multiple_masks(image)
+    return jsonify({'data': res}), 200
+
+# 自动删除过期图片
+
+
+@app.route('/rem-bg', methods=["POST"])
+def image_remove_bg() -> tuple[Response, int]:
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "No file uploaded"}), 400
+    file_bytes = file.read()
+    np_arr = np.frombuffer(file_bytes, np.uint8)
+    image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # 解码为 BGR 格式
+    if image is None:
+        return jsonify({"error": "Failed to decode image"}), 400
+
+    # 转换为 RGB 格式（如果你的模型需要）
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    res = do_remove_bg(image)
+    return jsonify({'data': res}), 200
+
+
+# 定时删除过期文件
+get_scheduler().start()
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=7263)
-    get_scheduler().start()
+    app.run(host="0.0.0.0", port=5000)
+    # get_scheduler().start()

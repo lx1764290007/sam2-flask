@@ -2,7 +2,7 @@ import os
 import time
 from pathlib import Path
 
-from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 
 current_dir = Path.cwd()
 # 获取 app.py 文件的绝对路径
@@ -37,9 +37,7 @@ def delete_old_files():
 
 def get_scheduler():
     # 创建调度器
-    scheduler = BlockingScheduler()
-
-    # 添加定时任务，设置为每天的午夜（24点）执行
+    scheduler = BackgroundScheduler()
     scheduler.add_job(delete_old_files, 'cron', hour=0, minute=0)
 
     # 启动调度器
