@@ -27,7 +27,13 @@ def save_image(np_arr):
         # 生成一个三位数随机数
         random_number = str(random.randrange(100, 1000))
         file_name = f"{SAVE_PATH}/{timestamp}_{random_number}.png"
-        image.save(f"{file_name}", format="PNG")
+        try:
+            if image.mode != 'RGBA':
+                image = image.convert('RGBA')
+            image.save(f"{file_name}", format="PNG")
+        except (OSError, IOError) as e:
+            # 记录错误信息
+            print(f"Error saving image: {e}")
         return f"{timestamp}_{random_number}.png"
     else:
         path.mkdir(parents=True, exist_ok=True)

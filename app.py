@@ -55,14 +55,12 @@ def create_multiple_masks(nd):
 
 def do_remove_bg(np_array):
     output = remove(np_array)
-
     image_result = get_mask_to_center_image(None, output)
-
-
     # 获取图片尺寸（高度、宽度、通道数）
-    height, width, channels = image_result.shape
+    # height, width, channels = image_result.shape
     result = save_image(image_result)
     return result
+
 
 def multiple_masks_to_image(masks, np_arr):
     arr = []
