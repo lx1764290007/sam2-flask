@@ -5,10 +5,9 @@
 import json
 import logging
 import cv2
+# import modal
 import torch
-
 from rembg import remove
-
 from sam2.build_sam import build_sam2
 import numpy as np
 
@@ -26,6 +25,8 @@ from flask_cors import CORS
 from save_image.clear_file import get_scheduler
 from save_image.save_file import save_image
 
+
+# stub = modal.Stub("sam-service")
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -322,10 +323,16 @@ def image_remove_bg() -> tuple[Response, int]:
     return jsonify({'data': res}), 200
 
 
-# 定时删除过期文件
-get_scheduler().start()
 
+
+@app.route("/")
+def index():
+    return "Hello from Modal Flask!"
+
+
+# 定时删除过期文件
+# get_scheduler().start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=10086)
     # get_scheduler().start()
