@@ -327,7 +327,7 @@ def image_remove_bg() -> tuple[Response, int]:
 
 @app.route("/")
 def index():
-    return "Hello from Modal Flask!"
+    return Response("Hello from Modal Flask!", status=200, mimetype='text/plain')
 
 
 # 定时删除过期文件
