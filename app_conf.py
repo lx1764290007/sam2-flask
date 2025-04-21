@@ -26,14 +26,14 @@ DATA_PATH = Path(os.getenv("DATA_PATH", "/usr/local/segment_flask/server/data"))
 # seconds.
 MAX_UPLOAD_VIDEO_DURATION = float(os.environ.get("MAX_UPLOAD_VIDEO_DURATION", "10"))
 
-DEVICE_TYPE = "cpu"
+DEVICE_TYPE = "cuda"
 # If set, it will define which video is returned by the default video query for
 # desktop
 DEFAULT_VIDEO_PATH = os.getenv("DEFAULT_VIDEO_PATH")
 
 DEFAULT_CHECK_POINT_PATH = os.getenv("CHECK_POINT_PATH", "./checkpoints")
 
-DEFAULT_CHECK_POINT_YAML_PATH = os.getenv("CHECK_POINT_CONFIG_PATH", "/usr/local/segment_flask/server/checkpoints/config")
+DEFAULT_CHECK_POINT_YAML_PATH: str = os.getenv("CHECK_POINT_CONFIG_PATH", "/usr/local/segment_flask/server/checkpoints/config")
 # Prefix for gallery videos
 GALLERY_PREFIX = "gallery"
 
