@@ -17,6 +17,7 @@ from sam2 import automatic_mask_generator
 from app_conf import (
     DEVICE_TYPE,
     DEFAULT_CHECK_POINT_PATH,
+    DEFAULT_CHECK_POINT_YAML_PATH
 )
 
 from flask import Flask, request, Response, jsonify
@@ -36,7 +37,7 @@ cors = CORS(app, supports_credentials=True)
 # 加载图像
 
 checkpoint = f"{DEFAULT_CHECK_POINT_PATH}/sam2.1_hiera_base_plus.pt"
-model_cfg = "./configs/sam2.1/sam2.1_hiera_b+.yaml"
+model_cfg = f"{DEFAULT_CHECK_POINT_YAML_PATH}/sam2.1/sam2.1_hiera_b+.yaml"
 build_sam2_model = build_sam2(model_cfg, checkpoint)
 predictor = SAM2ImagePredictor(build_sam2_model)
 

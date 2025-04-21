@@ -1,5 +1,6 @@
 import modal
-from app import app as flask_app
+import sys
+sys.path.append("/root/server")  # 👈 把 server 目录加入 Python 路径
 
 image = (
     modal.Image.debian_slim()
@@ -9,14 +10,17 @@ image = (
         "libglib2.0-0",  # OpenCV 多线程相关（libgthread 所属包）
     )
     .run_commands(
-        "git clone https://github.com/lx1764290007/sam2-flask.git /root/sam"
+        "git clone https://github.com/lx1764290007/sam2-flask.git /root/server"
     )
     .pip_install("gunicorn")
     .pip_install_from_requirements("requirements.txt")
-    .add_local_file("checkpoints/sam2.1_hiera_base_plus.pt", "/root/sam2/checkpoints/sam2.1_hiera_base_plus.pt",
+    .add_local_file("./app.py", "/root/server/app.py")
+    .add_local_file("./app_conf.py", "/root/server/app_conf.py")
+    .add_local_file("checkpoints/sam2.1_hiera_base_plus.pt", "/root/server/checkpoints/sam2.1_hiera_base_plus.pt",
                     copy=True)  # 模型
+    .add_local_dir("sam2/configs", "/root/server/configs")
 )
-app = modal.App(name="sam-app-3", image=image)
+app = modal.App(name="sam-web-app", image=image)
 
 
 @app.function(
@@ -28,6 +32,7 @@ app = modal.App(name="sam-app-3", image=image)
 )
 @modal.web_server(port=10088)  # 开启 Web 服务（Flask/FastAPI）
 def web():
-    return flask_app  # 直接返回 Flask 实例
+    from app import app as flask_app  # 注意这里的 app 是 Flask 实例
+    return flask_app
 
 
