@@ -1,6 +1,6 @@
 import modal
 import sys
-sys.path.append("/root/server")  # 👈 把 server 目录加入 Python 路径
+sys.path.append("/root/flask-server")  # 👈 把 server 目录加入 Python 路径
 
 image = (
     modal.Image.debian_slim()
@@ -10,17 +10,15 @@ image = (
         "libglib2.0-0",  # OpenCV 多线程相关（libgthread 所属包）
     )
     .run_commands(
-        "git clone https://github.com/lx1764290007/sam2-flask.git /root/server"
+        "git clone https://github.com/lx1764290007/sam2-flask.git /root/flask-server"
     )
     .pip_install("gunicorn")
     .pip_install_from_requirements("requirements.txt")
-    .add_local_file("./app.py", "/root/server/app.py")
-    .add_local_file("./app_conf.py", "/root/server/app_conf.py")
-    .add_local_file("checkpoints/sam2.1_hiera_base_plus.pt", "/root/server/checkpoints/sam2.1_hiera_base_plus.pt",
+    .add_local_file("checkpoints/sam2.1_hiera_base_plus.pt", "/root/flask-server/checkpoints/sam2.1_hiera_base_plus.pt",
                     copy=True)  # 模型
-    .add_local_dir("sam2/configs", "/root/server/configs")
+    .add_local_dir("sam2/configs", "/root/flask-server/configs")
 )
-app = modal.App(name="sam-web-app", image=image)
+app = modal.App(name="sam-web-app2", image=image)
 
 
 @app.function(

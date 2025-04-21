@@ -20,7 +20,7 @@ logger.info(f"using model size {MODEL_SIZE}")
 FFMPEG_NUM_THREADS = int(os.getenv("FFMPEG_NUM_THREADS", "1"))
 
 # Path for all data used in API
-DATA_PATH = Path(os.getenv("DATA_PATH", "/root/server"))
+DATA_PATH = Path(os.getenv("DATA_PATH", "/root/flask-server"))
 
 # Max duration an uploaded video can have in seconds. The default is 10
 # seconds.
@@ -33,7 +33,7 @@ DEFAULT_VIDEO_PATH = os.getenv("DEFAULT_VIDEO_PATH")
 
 DEFAULT_CHECK_POINT_PATH = os.getenv("CHECK_POINT_PATH", "./checkpoints")
 
-DEFAULT_CHECK_POINT_YAML_PATH: str = os.getenv("CHECK_POINT_CONFIG_PATH", "/root/server/sam2/configs")
+DEFAULT_CHECK_POINT_YAML_PATH: str = os.getenv("CHECK_POINT_CONFIG_PATH", "/root/flask-server/sam2/configs")
 # Prefix for gallery videos
 GALLERY_PREFIX = "gallery"
 
