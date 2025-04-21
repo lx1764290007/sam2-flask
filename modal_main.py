@@ -1,6 +1,5 @@
-import os
-
 import modal
+from app import app as flask_app
 
 image = (
     modal.Image.debian_slim()
@@ -17,25 +16,18 @@ image = (
     .add_local_file("checkpoints/sam2.1_hiera_base_plus.pt", "/root/sam2/checkpoints/sam2.1_hiera_base_plus.pt",
                     copy=True)  # 模型
 )
-app = modal.App(name="sam2-server", image=image)
+app = modal.App(name="sam-app", image=image)
 
 
 @app.function(
-    gpu="A10G",  # 可选: "A100", "T4", "A10G"
+    gpu="T4",  # 可选: "A100", "T4", "A10G"
     image=image,
     cpu=4,
     memory=1024 * 16,
-    timeout=600
+    timeout=60*10
 )
-@modal.web_server(port=10086)  # 开启 Web 服务（Flask/FastAPI）
+@modal.web_server(port=10088)  # 开启 Web 服务（Flask/FastAPI）
 def web():
-    import subprocess
-    print("🚀 Current directory files:", os.listdir("/root/sam2"))
-    subprocess.run([
-        "gunicorn", "app:app",
-        "-b", "0.0.0.0:10086",
-        "--workers", "2",
-        "--threads", "4",
-        "--timeout", "300"
-    ], cwd="/root/sam2",capture_output=True, text=True)
+    return flask_app  # 直接返回 Flask 实例
+
 
