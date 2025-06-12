@@ -5,9 +5,14 @@
 import json
 import logging
 import cv2
-# import modal
 import torch
-from rembg import remove
+
+from rembg import remove, new_session
+
+# 初始化支持 GPU 的 session
+session = new_session("u2net", use_cuda=True)  # 使用 u2net 模型并启用 CUDA
+
+
 from sam2.build_sam import build_sam2
 import numpy as np
 
@@ -17,7 +22,6 @@ from sam2 import automatic_mask_generator
 from app_conf import (
     DEVICE_TYPE,
     DEFAULT_CHECK_POINT_PATH,
-    DEFAULT_CHECK_POINT_YAML_PATH
 )
 
 from flask import Flask, request, Response, jsonify
@@ -26,8 +30,6 @@ from flask_cors import CORS
 from save_image.clear_file import get_scheduler
 from save_image.save_file import save_image
 
-
-# stub = modal.Stub("sam-service")
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -37,7 +39,7 @@ cors = CORS(app, supports_credentials=True)
 # 加载图像
 
 checkpoint = f"{DEFAULT_CHECK_POINT_PATH}/sam2.1_hiera_base_plus.pt"
-model_cfg = f"{DEFAULT_CHECK_POINT_YAML_PATH}/sam2.1/sam2.1_hiera_b+.yaml"
+model_cfg = "./configs/sam2.1/sam2.1_hiera_b+.yaml"
 build_sam2_model = build_sam2(model_cfg, checkpoint)
 predictor = SAM2ImagePredictor(build_sam2_model)
 
@@ -56,7 +58,7 @@ def create_multiple_masks(nd):
 
 
 def do_remove_bg(np_array):
-    output = remove(np_array)
+    output = remove(np_array, session=session)
     image_result = get_mask_to_center_image(None, output)
     # 获取图片尺寸（高度、宽度、通道数）
     # height, width, channels = image_result.shape
@@ -81,15 +83,13 @@ def multiple_masks_to_image(masks, np_arr):
         # 将掩码应用到原图上（掩码为 1 的部分保留，掩码为 0 的部分置为透明或黑色）
         result_image = np_arr * mask_3d  # 根据掩码提取原图区域
 
-        # 如果你需要将图像保存为 RGBA 格式（带透明度），你可以添加 Alpha 通道
         rgba_image = np.zeros((height, width, 4), dtype=np.uint8)  # 创建一个 RGBA 图像
         rgba_image[..., :3] = result_image  # 将 RGB 部分赋值
         rgba_image[..., 3] = (segmentation * 255).astype(np.uint8)  # Alpha 通道根据掩码设置
 
-        # 如果你有处理透明度的函数，可以在这里调用
         rgba_image_center = get_mask_to_center_image(segmentation, rgba_image)
 
-        # 保存图像（假设 save_image 已定义）
+        # 保存图像
         file_name = save_image(rgba_image_center)
 
         # 将文件名添加到数组
@@ -220,11 +220,11 @@ def generate_mask(np_array, nparr):
         # # 使用 base64 编码字节流
         # base64_image_origin = f"data:image/png;base64,{image_base64_result}"
 
-        # 1. 定义蒙层的颜色和透明度
+        # 定义蒙层的颜色和透明度
         overlay_color = (255, 0, 0, 128)  # 红色蒙层，RGBA 格式 (R, G, B, Alpha)
         alpha = overlay_color[3] / 255.0  # 计算透明度比例
 
-        # 2. 创建蒙层
+        # 创建蒙层
         height, width = image.shape[:2]
         overlay = np.zeros((height, width, 4), dtype=np.uint8)
         overlay[..., 0] = overlay_color[0]  # 红色通道
@@ -232,22 +232,20 @@ def generate_mask(np_array, nparr):
         overlay[..., 2] = overlay_color[2]  # 蓝色通道
         overlay[..., 3] = overlay_color[3]  # Alpha 通道
 
-        # 3. 创建与原图相同的 RGBA 图像
+        # 创建与原图相同的 RGBA 图像
         rgba_image = np.zeros((height, width, 4), dtype=np.uint8)
         rgba_image[..., :3] = image[..., :3]  # 原图 RGB 通道
         rgba_image[..., 3] = (best_mask * 255).astype(np.uint8)  # 使用掩码作为 Alpha 通道
-        # 4. 提取掩膜的边缘
+        # 提取掩膜的边缘
         binary_mask = (best_mask * 255).astype(np.uint8)  # 将掩膜转换为二值图像
         edges = cv2.Canny(binary_mask, 100, 200)  # 使用 Canny 边缘检测
-        # 5. 创建发光效果
         highlight_color = [173, 216, 230]  # 高亮颜色
         glow_radius = 4  # 高光范围
-        # 6. 为掩膜的边缘区域应用发光效果
         for y in range(height):
             for x in range(width):
                 if edges[y, x] > 0:  # 如果是边缘
-                    rgba_image[y, x, :3] = glow_radius * np.array(highlight_color)  # 将边缘设置为绿色发光
-        # 7. 只在掩码部分应用蒙层
+                    rgba_image[y, x, :3] = glow_radius * np.array(highlight_color)
+        # 只在掩码部分应用蒙层
         for y in range(height):
             for x in range(width):
                 if best_mask[y, x] == 1:  # 如果该像素是掩码区域
@@ -256,7 +254,6 @@ def generate_mask(np_array, nparr):
                     rgba_image[y, x, 3] = 255  # 保证蒙层区域完全不透明
 
         # cv2.waitKey(0)
-        # 8. 存储为image并返回文件名
         image_mask = save_image(rgba_image)
         return dict(image_origin=file_name, image_mask=image_mask)
 
@@ -297,13 +294,11 @@ def create_multiple_images() -> tuple[Response, int]:
     if image is None:
         return jsonify({"error": "Failed to decode image"}), 400
 
-    # 转换为 RGB 格式（如果你的模型需要）
+    # 转换为 RGB 格式
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     res = create_multiple_masks(image)
     return jsonify({'data': res}), 200
-
-# 自动删除过期图片
 
 
 @app.route('/rem-bg', methods=["POST"])
@@ -317,23 +312,17 @@ def image_remove_bg() -> tuple[Response, int]:
     if image is None:
         return jsonify({"error": "Failed to decode image"}), 400
 
-    # 转换为 RGB 格式（如果你的模型需要）
+    # 转换为 RGB 格式
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     res = do_remove_bg(image)
     return jsonify({'data': res}), 200
 
 
-
-
-@app.route("/")
-def index():
-    return Response("Hello from Modal Flask!", status=200, mimetype='text/plain')
-
-
 # 定时删除过期文件
-# get_scheduler().start()
+get_scheduler().start()
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10088)
-    get_scheduler().start()
+    app.run(host="0.0.0.0", port=5000)
+    # get_scheduler().start()

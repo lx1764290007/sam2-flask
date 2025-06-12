@@ -6,9 +6,14 @@
 
 import logging
 import os
+
+import modal
+
 from app_conf import (
     DEVICE_TYPE
 )
+import sys
+sys.path.insert(0, "/root/flask-server2/sam2")
 import torch
 from hydra import compose
 from hydra.utils import instantiate
@@ -127,6 +132,7 @@ def build_sam2_video_predictor(
 
     # Read config and init model
     cfg = compose(config_name=config_file, overrides=hydra_overrides)
+    print("log success")
     OmegaConf.resolve(cfg)
     model = instantiate(cfg.model, _recursive_=True)
     _load_checkpoint(model, ckpt_path)
@@ -160,10 +166,11 @@ def _load_checkpoint(model, ckpt_path):
     if ckpt_path is not None:
         sd = torch.load(ckpt_path, map_location=DEVICE_TYPE, weights_only=True)["model"]
         missing_keys, unexpected_keys = model.load_state_dict(sd)
+
         if missing_keys:
             logging.error(missing_keys)
             raise RuntimeError()
         if unexpected_keys:
             logging.error(unexpected_keys)
             raise RuntimeError()
-        logging.info("Loaded checkpoint sucessfully")
+        print("Loaded checkpoint sucessfully")
