@@ -27,7 +27,7 @@ def delete_old_files():
                 timestamp = float(timestamp_str)  # 转换为浮动时间戳
 
                 # 计算文件是否超过五分钟
-                if current_time - timestamp > 5 * 60:
+                if current_time - timestamp > 5 * 60 * 6:
                     # 超过五分钟，删除文件
                     os.remove(file_path)
                     print(f"删除文件: {file_path}")

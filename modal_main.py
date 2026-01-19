@@ -32,7 +32,7 @@ image = (
     .add_local_dir("sam2_configs", "/root/sam2_configs")
     .add_local_dir("sam2_configs", "/root/flask-server2/sam2_configs")
 )
-app = modal.App(name="sam-web-app3", image=image)
+app = modal.App(name="sam2-app", image=image)
 
 
 @app.function(
