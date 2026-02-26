@@ -249,8 +249,7 @@ def get_mask_to_center_image(best_mask, rgba_image):
     max_containers=2,
     # scaledown_window=60 * 60,
     min_containers=1,
-    scaledown_window=3600,  # 最大值，作为额外保障
-    enable_memory_snapshot=True,  # 快速恢复状态
+    enable_memory_snapshot=False,  # 快速恢复状态
     cpu=2.0
 )
 def torchFunc(img=None, input_point=None, new_input_label=None):
@@ -364,7 +363,10 @@ except EOFError as e:
 
 @app_flask.route("/pull-up", methods=["POST", "GET"])
 def pull_up_app() -> tuple[Response, int]:
-
+    return jsonify({
+        "data": "success",
+        "code": 200
+    }), 200
     rem_bg_remote = modal.Function.from_name(app_name, "rem_remote")
     torch_func_remote = modal.Function.from_name(app_name, "torchFunc")
     global current_timestamp
@@ -535,17 +537,14 @@ def image_remove_bg() -> tuple[Response, int]:
     max_containers=2,
     # scaledown_window=60 * 60,
     min_containers=1,
-    scaledown_window=3600,  # 最大值，作为额外保障
-    enable_memory_snapshot=True,  # 快速恢复状态
-    nonpreemptible=True,  # 使用非抢占式实例，避免被回收
+    scaledown_window=60 * 5,  # 最大值，作为额外保障
+    enable_memory_snapshot=False,  # 快速恢复状态
     cpu=4.0,
     volumes={"/root/.u2net": rembg_cache_vol},  # 将 rembg 缓存卷映射到模型目录
     # gpu="T4",  # 为背景移除任务分配GPU
 )
 def rem_remote(file_bytes=None) -> dict:
     if not file_bytes:
-
-
         return {"message": "No file data provided", "status": "error"}
     try:
         # 验证 rembg 模型文件是否存在
